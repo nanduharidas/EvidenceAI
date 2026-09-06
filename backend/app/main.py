@@ -1,6 +1,7 @@
 from pathlib import Path
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from backend.app.services.pdf_service import extract_pdf_text
+from backend.app.services.chunk_service import create_chunks
 
 app = FastAPI(
     title="Evidence API",
@@ -48,8 +49,22 @@ async def upload_document(file: UploadFile = File(...)):
 
     pages = extract_pdf_text(str(file_path))
 
-    return {
+    chunks = create_chunks(
+        pages=pages,
+        document_name=file.filename
+    )
+
+    return{
         "filename": file.filename,
         "pages": len(pages),
-        "content": pages
+        "chunks": len(chunks),
+        "content": [
+            {
+                "chunk_id": chunk.chunk_id,
+                "document": chunk.document,
+                "page": chunk.page,
+                "text": chunk.text,
+            }
+            for chunk in chunks
+        ],
     }
