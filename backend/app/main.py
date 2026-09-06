@@ -9,6 +9,8 @@ from backend.app.services.document_service import (
     generate_document_id,
     create_safe_filename,
 )
+from backend.app.services.llm_service import LLMService
+from backend.app.services.rag_service import RAGService
 
 app = FastAPI(
     title="Evidence API",
@@ -21,6 +23,24 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 embedding_service = EmbeddingService()
 vector_store = VectorStore()
+llm_service = LLMService()
+
+rag_service = RAGService(
+    embedding_service=embedding_service,
+    vector_store=vector_store,
+    llm_service=llm_service,
+)
+
+class QuestionRequest(BaseModel):
+    question: str
+    top_k: int = 5
+
+@app.post("/ask")
+def ask_question(request: QuestionRequest):
+    return rag_service.answer_question(
+        question=request.question,
+        top_k=request.top_k,
+    )
 
 class SearchRequest(BaseModel):
     query: str
@@ -68,6 +88,7 @@ async def upload_document(file: UploadFile = File(...)):
             detail="Only PDF files are supported",
         )
 
+    safe_filename = create_safe_filename(file.filename)
     file_path = UPLOAD_DIR / safe_filename
 
     contents = await file.read()
@@ -76,7 +97,6 @@ async def upload_document(file: UploadFile = File(...)):
     file.filename,
     contents,
     )
-    safe_filename = create_safe_filename(file.filename)
 
     file_path.write_bytes(contents)
 
