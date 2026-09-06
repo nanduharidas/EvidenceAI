@@ -8,6 +8,11 @@ from pydantic import BaseModel
 from backend.app.services.document_service import (
     generate_document_id,
     create_safe_filename,
+    load_documents,
+    create_document_record,
+    add_document,
+    get_document,
+    delete_document_record,
 )
 from backend.app.services.llm_service import LLMService
 from backend.app.services.rag_service import RAGService
@@ -69,7 +74,9 @@ def root():
 
 @app.get("/health")
 def health():
-    return{"status":"healthy"}
+    return {
+        "status": "healthy",
+    }
 
 @app.post("/documents/upload")
 async def upload_document(file: UploadFile = File(...)):
@@ -79,7 +86,7 @@ async def upload_document(file: UploadFile = File(...)):
     if not file.filename:
         raise HTTPException(
             status_code=400,
-            detail="No filename procided",
+            detail="No filename provided",
         )
 
     if not file.filename.lower().endswith(".pdf"):
@@ -125,6 +132,15 @@ async def upload_document(file: UploadFile = File(...)):
             for chunk in chunks
         ],
     )
+    document_record = create_document_record(
+        document_id=document_id,
+        filename=safe_filename,
+        pages=len(pages),
+        chunks=len(chunks),
+    )
+
+    add_document(document_record)
+
     return {
     "document_id": document_id,
     "filename": safe_filename,
@@ -140,4 +156,49 @@ async def upload_document(file: UploadFile = File(...)):
         for chunk in chunks
     ],
 }
+
+@app.get("/documents")
+def list_documents():
+    return {
+        "documents": load_documents(),
+    }
+
+@app.get("/documents/{document_id}")
+def get_document_details(document_id: str):
+    document = get_document(document_id)
+
+    if document is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Document not found",
+        )
+
+    return document
+
+@app.delete("/documents/{document_id}")
+def delete_document(document_id: str):
+    document = get_document(document_id)
+
+    if document is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Document not found",
+        )
+
+    filename = document["filename"]
+    file_path = UPLOAD_DIR / filename
+
+    if file_path.exists():
+        file_path.unlink()
+
+    vector_store.collection.delete(
+        where={"document_id": document_id}
+    )
+
+    delete_document_record(document_id)
+
+    return {
+        "document_id": document_id,
+        "status": "deleted",
+    }
 

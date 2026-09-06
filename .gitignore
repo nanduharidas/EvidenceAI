@@ -15,6 +15,7 @@ venv/
 # Application data
 data/uploads/
 data/chroma/
+data/documents.json
 
 # Node
 node_modules/
