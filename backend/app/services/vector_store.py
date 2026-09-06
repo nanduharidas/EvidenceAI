@@ -16,7 +16,8 @@ class VectorStore:
         )
 
         self.collection = self.client.get_or_create_collection(
-            name="documents"
+            name="documents",
+            metadata={"hnsw:space": "cosine"},
         )
 
     def add_chunks(
