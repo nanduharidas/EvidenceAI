@@ -87,8 +87,8 @@ class RAGService:
 
         sources = []
 
-        for index, metadata in enumerate(
-            metadatas,
+        for index, (document, metadata) in enumerate(
+            zip(documents, metadatas),
             start=1,
         ):
             sources.append(
@@ -97,6 +97,7 @@ class RAGService:
                     "document_id": metadata["document_id"],
                     "document": metadata["document"],
                     "page": metadata["page"],
+                    "text": document,
                 }
             )
 
