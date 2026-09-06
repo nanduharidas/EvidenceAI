@@ -17,6 +17,13 @@ from backend.app.services.document_service import (
 from backend.app.services.llm_service import LLMService
 from backend.app.services.rag_service import RAGService
 
+from backend.app.services.conversation_service import (
+    create_conversation,
+    get_conversation,
+    add_message,
+    load_conversations,
+)
+
 app = FastAPI(
     title="Evidence API",
     description="AI-powered document Q&A with evidence-based citations",
@@ -39,13 +46,57 @@ rag_service = RAGService(
 class QuestionRequest(BaseModel):
     question: str
     top_k: int = 5
+    conversation_id: str | None = None
 
 @app.post("/ask")
 def ask_question(request: QuestionRequest):
-    return rag_service.answer_question(
+    conversation_id = request.conversation_id
+
+    if conversation_id is None:
+        conversation = create_conversation()
+        conversation_id = conversation["conversation_id"]
+    else:
+        conversation = get_conversation(conversation_id)
+
+        if conversation is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Conversation not found",
+            )
+
+    response = rag_service.answer_question(
         question=request.question,
         top_k=request.top_k,
     )
+
+    add_message(
+        conversation_id=conversation_id,
+        question=request.question,
+        response=response,
+    )
+
+    return {
+        "conversation_id": conversation_id,
+        **response,
+    }
+
+@app.get("/conversations")
+def list_conversations():
+    return {
+        "conversations": load_conversations(),
+    }
+
+@app.get("/conversations/{conversation_id}")
+def get_conversation_details(conversation_id: str):
+    conversation = get_conversation(conversation_id)
+
+    if conversation is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Conversation not found",
+        )
+
+    return conversation
 
 class SearchRequest(BaseModel):
     query: str
