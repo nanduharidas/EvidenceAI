@@ -5,6 +5,10 @@ from backend.app.services.chunk_service import create_chunks
 from backend.app.services.embedding_service import EmbeddingService
 from backend.app.services.vector_store import VectorStore
 from pydantic import BaseModel
+from backend.app.services.document_service import (
+    generate_document_id,
+    create_safe_filename,
+)
 
 app = FastAPI(
     title="Evidence API",
@@ -64,9 +68,15 @@ async def upload_document(file: UploadFile = File(...)):
             detail="Only PDF files are supported",
         )
 
-    file_path = UPLOAD_DIR / file.filename
+    file_path = UPLOAD_DIR / safe_filename
 
     contents = await file.read()
+
+    document_id = generate_document_id(
+    file.filename,
+    contents,
+    )
+    safe_filename = create_safe_filename(file.filename)
 
     file_path.write_bytes(contents)
 
@@ -74,7 +84,8 @@ async def upload_document(file: UploadFile = File(...)):
 
     chunks = create_chunks(
         pages=pages,
-        document_name=file.filename
+        document_id=document_id,
+        document_name=safe_filename,
     )
 
     chunk_texts = [chunk.text for chunk in chunks]
@@ -87,24 +98,26 @@ async def upload_document(file: UploadFile = File(...)):
         embeddings=embeddings,
         metadatas=[
             {
+                "document_id": document_id,
                 "document": chunk.document,
                 "page": chunk.page,
             }
             for chunk in chunks
         ],
     )
-    return{
-        "filename": file.filename,
-        "pages": len(pages),
-        "chunks": len(chunks),
-        "content": [
-            {
-                "chunk_id": chunk.chunk_id,
-                "document": chunk.document,
-                "page": chunk.page,
-                "text": chunk.text,
-            }
-            for chunk in chunks
-        ],
-    }
+    return {
+    "document_id": document_id,
+    "filename": safe_filename,
+    "pages": len(pages),
+    "chunks": len(chunks),
+    "content": [
+        {
+            "chunk_id": chunk.chunk_id,
+            "document": chunk.document,
+            "page": chunk.page,
+            "text": chunk.text,
+        }
+        for chunk in chunks
+    ],
+}
 

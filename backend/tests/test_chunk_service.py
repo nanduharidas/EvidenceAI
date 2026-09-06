@@ -11,6 +11,7 @@ def test_create_chunks_preserves_page_metadata():
 
     chunks = create_chunks(
         pages=pages,
+        document_id="test-document",
         document_name="test.pdf",
         chunk_size=1000,
         overlap=100,
@@ -19,6 +20,10 @@ def test_create_chunks_preserves_page_metadata():
     assert len(chunks) > 1
     assert all(chunk.document == "test.pdf" for chunk in chunks)
     assert all(chunk.page == 1 for chunk in chunks)
+    assert all(
+        chunk.chunk_id.startswith("test-document:")
+        for chunk in chunks
+    )
 
 def test_empty_pages_are_skipped():
     pages = [
@@ -34,9 +39,9 @@ def test_empty_pages_are_skipped():
 
     chunks = create_chunks(
         pages=pages,
+        document_id="test-document",
         document_name="test.pdf",
     )
-
     assert len(chunks) == 1
     assert chunks[0].page == 2
 
@@ -52,6 +57,7 @@ def test_invalid_overlap_raises_error():
     with pytest.raises(ValueError):
         create_chunks(
             pages=pages,
+            document_id="test-document",
             document_name="test.pdf",
             chunk_size=100,
             overlap=100,

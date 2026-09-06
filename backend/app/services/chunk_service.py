@@ -8,10 +8,11 @@ class DocumentChunk:
     text: str
 
 def create_chunks(
-        pages: list[dict],
-        document_name: str,
-        chunk_size: int = 1000,
-        overlap: int = 150,
+    pages: list[dict],
+    document_id: str,
+    document_name: str,
+    chunk_size: int = 1000,
+    overlap: int = 150,
 ) -> list[DocumentChunk]:
     """
     Split page-level PDF text into overlapping chunks.
@@ -47,7 +48,7 @@ def create_chunks(
             if chunk_text:
                 chunks.append(
                     DocumentChunk(
-                        chunk_id=f"{page_number}-{chunk_number:03d}",
+                        chunk_id=f"{document_id}:{page_number}:{chunk_number:03d}",
                         document=document_name,
                         page=page_number,
                         text=chunk_text,
