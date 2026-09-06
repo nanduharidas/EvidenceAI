@@ -1,29 +1,24 @@
-import { useEffect, useRef, useState } from "react";
-import "./App.css";
 import {
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+} from "react";
+import {
+  askQuestion,
   deleteDocument,
   getDocuments,
   uploadDocument,
+  type AskResponse,
   type Document,
 } from "./services/api";
+import "./App.css";
 
 function DocumentIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        d="M6 3.75h7.25L18 8.5v11.75H6V3.75Z"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M13 3.75V9h5"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinejoin="round"
-      />
+      <path d="M6 3.5h8l4 4V20.5H6z" />
+      <path d="M14 3.5v4h4M9 12h6M9 16h6" />
     </svg>
   );
 }
@@ -31,13 +26,8 @@ function DocumentIcon() {
 function ConversationIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        d="M5 5.5h14v10H9l-4 3v-13Z"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinejoin="round"
-      />
+      <path d="M5 5.5h14v10H9l-4 3v-13z" />
+      <path d="M8 9.5h8M8 12.5h5" />
     </svg>
   );
 }
@@ -45,38 +35,18 @@ function ConversationIcon() {
 function SettingsIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        d="M9.7 4.8 10.5 3h3l.8 1.8 1.8.9 1.9-.5 2.1 2.1-.5 1.9.9 1.8 1.8.8v3l-1.8.8-.9 1.8.5 1.9-2.1 2.1-1.9-.5-1.8.9-.8 1.8h-3l-.8-1.8-1.8-.9-1.9.5-2.1-2.1.5-1.9-.9-1.8-1.8-.8v-3l1.8-.8.9-1.8-.5-1.9 2.1-2.1 1.9.5 1.8-.9Z"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-      />
-      <circle
-        cx="12"
-        cy="12"
-        r="3"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-      />
+      <path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z" />
+      <path d="M19 13.5v-3l-2-.6a5.7 5.7 0 0 0-.7-1.6l.9-1.9-2.1-2.1-1.9.9a5.7 5.7 0 0 0-1.6-.7L11 2.5H9l-.6 2a5.7 5.7 0 0 0-1.6.7l-1.9-.9-2.1 2.1.9 1.9a5.7 5.7 0 0 0-.7 1.6l-2 .6v3l2 .6c.2.6.4 1.1.7 1.6l-.9 1.9 2.1 2.1 1.9-.9c.5.3 1 .5 1.6.7l.6 2h3l.6-2c.6-.2 1.1-.4 1.6-.7l1.9.9 2.1-2.1-.9-1.9c.3-.5.5-1 .7-1.6z" />
     </svg>
   );
 }
 
-
-
 function UploadIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        d="M12 15V4m0 0L8 8m4-4 4 4M5 14.5v4h14v-4"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+      <path d="M12 16V5" />
+      <path d="m8 9 4-4 4 4" />
+      <path d="M5 15v4h14v-4" />
     </svg>
   );
 }
@@ -84,16 +54,17 @@ function UploadIcon() {
 function TrashIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        d="M5 7h14M10 11v6m4-6v6M9 7l.7-2h4.6l.7 2m-9 0 .8 13h10.4l.8-13"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+      <path d="M5 7h14M10 11v6M14 11v6M9 7V4h6v3M7 7l1 14h8l1-14" />
     </svg>
   );
+}
+
+function cleanText(text: string) {
+  return text
+    .replace(/<EOS>/gi, "")
+    .replace(/<pad>/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function App() {
@@ -103,12 +74,28 @@ function App() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const [question, setQuestion] = useState("");
+  const [messages, setMessages] = useState<
+    {
+      id: string;
+      role: "user" | "assistant";
+      content: string;
+      response?: AskResponse;
+    }[]
+  >([]);
+  const [conversationId, setConversationId] = useState<
+    string | undefined
+  >();
+  const [asking, setAsking] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     async function loadDocuments() {
       try {
+        setLoading(true);
         setError(null);
+
         const data = await getDocuments();
         setDocuments(data);
       } catch (err) {
@@ -122,21 +109,12 @@ function App() {
       }
     }
 
-    loadDocuments();
+    void loadDocuments();
   }, []);
 
-  async function handleFileUpload(
-    event: React.ChangeEvent<HTMLInputElement>,
-  ) {
-    const file = event.target.files?.[0];
-
-    if (!file) {
-      return;
-    }
-
-    if (file.type !== "application/pdf") {
-      setError("Only PDF files can be uploaded.");
-      event.target.value = "";
+  async function handleUpload(file: File) {
+    if (!file.name.toLowerCase().endsWith(".pdf")) {
+      setError("Only PDF files are supported.");
       return;
     }
 
@@ -147,27 +125,42 @@ function App() {
       const document = await uploadDocument(file);
 
       setDocuments((current) => {
-  const exists = current.some(
-    (item) => item.document_id === document.document_id,
-  );
+        const exists = current.some(
+          (item) => item.document_id === document.document_id,
+        );
 
-  if (exists) {
-    return current.map((item) =>
-      item.document_id === document.document_id ? document : item,
-    );
-  }
+        if (exists) {
+          return current.map((item) =>
+            item.document_id === document.document_id
+              ? document
+              : item,
+          );
+        }
 
-  return [...current, document];
-});
+        return [...current, document];
+      });
     } catch (err) {
       setError(
         err instanceof Error
           ? err.message
-          : "Unable to upload the document.",
+          : "Unable to upload document.",
       );
     } finally {
       setUploading(false);
-      event.target.value = "";
+
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  }
+
+  function handleFileChange(
+    event: ChangeEvent<HTMLInputElement>,
+  ) {
+    const file = event.target.files?.[0];
+
+    if (file) {
+      void handleUpload(file);
     }
   }
 
@@ -195,21 +188,65 @@ function App() {
       await deleteDocument(documentId);
 
       setDocuments((current) =>
-        current.filter((item) => item.document_id !== documentId),
+        current.filter(
+          (item) => item.document_id !== documentId,
+        ),
       );
     } catch (err) {
       setError(
         err instanceof Error
           ? err.message
-          : "Unable to delete the document.",
+          : "Unable to delete document.",
       );
     } finally {
       setDeletingId(null);
     }
   }
 
-  function openFilePicker() {
-    fileInputRef.current?.click();
+  async function handleAskQuestion() {
+    const trimmedQuestion = question.trim();
+
+    if (!trimmedQuestion || asking) {
+      return;
+    }
+
+    const userMessage = {
+      id: crypto.randomUUID(),
+      role: "user" as const,
+      content: trimmedQuestion,
+    };
+
+    setMessages((current) => [...current, userMessage]);
+    setQuestion("");
+    setAsking(true);
+    setError(null);
+
+    try {
+      const response = await askQuestion(
+        trimmedQuestion,
+        conversationId,
+      );
+
+      setConversationId(response.conversation_id);
+
+      setMessages((current) => [
+        ...current,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: cleanText(response.answer),
+          response,
+        },
+      ]);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to get an answer.",
+      );
+    } finally {
+      setAsking(false);
+    }
   }
 
   return (
@@ -217,26 +254,47 @@ function App() {
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-mark">E</div>
-          <span>EvidenceAI</span>
+
+          <div>
+            <div className="brand-name">EvidenceAI</div>
+            <div className="brand-subtitle">
+              Document Intelligence
+            </div>
+          </div>
         </div>
 
-        <nav className="sidebar-nav" aria-label="Main navigation">
-          <button className="nav-item active" type="button">
+        <nav
+          className="sidebar-nav"
+          aria-label="Main navigation"
+        >
+          <button
+            className="nav-item active"
+            type="button"
+          >
             <DocumentIcon />
             <span>Documents</span>
           </button>
 
-          <button className="nav-item" type="button">
+          <button
+            className="nav-item"
+            type="button"
+          >
             <ConversationIcon />
             <span>Conversations</span>
           </button>
-        </nav>
 
-        <div className="sidebar-bottom">
-          <button className="nav-item" type="button">
+          <button
+            className="nav-item"
+            type="button"
+          >
             <SettingsIcon />
             <span>Settings</span>
           </button>
+        </nav>
+
+        <div className="sidebar-footer">
+          <div className="status-dot" />
+          <span>Local AI system</span>
         </div>
       </aside>
 
@@ -245,68 +303,191 @@ function App() {
           <div>
             <h1>Documents</h1>
             <p>
-              Manage the documents EvidenceAI uses to answer your questions.
+              Ask questions and get answers backed by
+              evidence.
             </p>
           </div>
 
-          <button className="icon-button" type="button" aria-label="Settings">
-            <SettingsIcon />
-          </button>
-        </header>
-
-        <section className="documents-workspace">
-          <div className="documents-header">
-            <div>
-              <h2>Your Documents</h2>
-              <p>
-                {documents.length === 0
-                  ? "No documents uploaded yet."
-                  : `${documents.length} ${
-                      documents.length === 1 ? "document" : "documents"
-                    } available`}
-              </p>
-            </div>
-
-            <button
-              className="upload-button"
-              type="button"
-              onClick={openFilePicker}
-              disabled={uploading}
-            >
-              <UploadIcon />
-              {uploading ? "Uploading..." : "Upload PDF"}
-            </button>
-
+          <div className="topbar-actions">
             <input
               ref={fileInputRef}
               className="hidden-file-input"
               type="file"
-              accept="application/pdf,.pdf"
-              onChange={handleFileUpload}
+              accept=".pdf,application/pdf"
+              onChange={handleFileChange}
             />
+
+            <button
+              className="upload-button"
+              type="button"
+              onClick={() =>
+                fileInputRef.current?.click()
+              }
+              disabled={uploading}
+            >
+              <UploadIcon />
+              <span>
+                {uploading
+                  ? "Uploading..."
+                  : "Upload PDF"}
+              </span>
+            </button>
+          </div>
+        </header>
+
+        {error && (
+          <div
+            className="error-banner"
+            role="alert"
+          >
+            <span>{error}</span>
+
+            <button
+              type="button"
+              onClick={() => setError(null)}
+              aria-label="Dismiss error"
+            >
+              ×
+            </button>
+          </div>
+        )}
+
+        {messages.length > 0 && (
+          <section
+            className="chat-workspace"
+            aria-label="Conversation"
+          >
+            {messages.map((message) => (
+              <article
+                className={`chat-message ${message.role}`}
+                key={message.id}
+              >
+                <div className="message-label">
+                  {message.role === "user"
+                    ? "You"
+                    : "EvidenceAI"}
+                </div>
+
+                <div className="message-content">
+                  {message.role === "assistant"
+                    ? message.content
+                        .split(/(\[\d+\])/g)
+                        .map((part, index) =>
+                          /^\[\d+\]$/.test(part) ? (
+                            <span
+                              className="citation-badge"
+                              key={index}
+                            >
+                              {part}
+                            </span>
+                          ) : (
+                            <span key={index}>
+                              {part}
+                            </span>
+                          ),
+                        )
+                    : message.content}
+                </div>
+
+                {message.role === "assistant" &&
+                  message.response &&
+                  message.response.sources.length >
+                    0 && (
+                    <div className="evidence-preview">
+                      <div className="evidence-title">
+                        <span>Evidence</span>
+
+                        <span className="evidence-count">
+                          {
+                            message.response.sources
+                              .length
+                          }{" "}
+                          sources
+                        </span>
+                      </div>
+
+                      {message.response.sources.map(
+                        (source, index) => (
+                          <details
+                            className="evidence-item"
+                            key={source.chunk_id}
+                          >
+                            <summary>
+                              <div className="evidence-summary">
+                                <span className="evidence-number">
+                                  [{index + 1}]
+                                </span>
+
+                                <span
+                                  className="evidence-source"
+                                  title={
+                                    source.document
+                                  }
+                                >
+                                  {source.document}
+                                </span>
+
+                                <span className="evidence-page">
+                                  Page {source.page}
+                                </span>
+                              </div>
+
+                              <span className="evidence-chevron">
+                                ›
+                              </span>
+                            </summary>
+
+                            <div className="evidence-quote">
+                              {cleanText(source.text)}
+                            </div>
+                          </details>
+                        ),
+                      )}
+                    </div>
+                  )}
+              </article>
+            ))}
+
+            {asking && (
+              <article className="chat-message assistant">
+                <div className="message-label">
+                  EvidenceAI
+                </div>
+
+                <div className="message-content thinking-indicator">
+                  <span />
+                  <span />
+                  <span />
+                </div>
+              </article>
+            )}
+          </section>
+        )}
+
+        <section className="documents-section">
+          <div className="section-heading">
+            <div>
+              <h2>Your Documents</h2>
+
+              <p>
+                {documents.length === 0
+                  ? "Upload a PDF to start asking questions."
+                  : `${documents.length} ${
+                      documents.length === 1
+                        ? "document"
+                        : "documents"
+                    } available`}
+              </p>
+            </div>
           </div>
 
-          {error && (
-            <div className="error-banner" role="alert">
-              <span>{error}</span>
-
-              <button
-                type="button"
-                onClick={() => setError(null)}
-                aria-label="Dismiss error"
-              >
-                ×
-              </button>
-            </div>
-          )}
-
           {loading ? (
-            <div className="documents-state">
+            <div className="empty-state">
               <div className="loading-spinner" />
               <p>Loading documents...</p>
             </div>
           ) : documents.length === 0 ? (
-            <div className="documents-state empty-state">
+            <div className="empty-state">
               <div className="empty-icon">
                 <DocumentIcon />
               </div>
@@ -314,14 +495,16 @@ function App() {
               <h3>No documents yet</h3>
 
               <p>
-                Upload a PDF to start asking questions and retrieving
-                evidence.
+                Upload a PDF and EvidenceAI will index it
+                for evidence-based questions.
               </p>
 
               <button
-                className="secondary-upload-button"
+                className="empty-upload-button"
                 type="button"
-                onClick={openFilePicker}
+                onClick={() =>
+                  fileInputRef.current?.click()
+                }
                 disabled={uploading}
               >
                 <UploadIcon />
@@ -329,33 +512,60 @@ function App() {
               </button>
             </div>
           ) : (
-            <div className="document-list">
+            <div className="document-grid">
               {documents.map((document) => (
-                <article className="document-card" key={document.document_id}>
-                  <div className="document-icon">
-                    <DocumentIcon />
-                  </div>
-
-                  <div className="document-info">
-                    <h3 title={document.filename}>{document.filename}</h3>
-
-                    <div className="document-meta">
-                      <span>{document.pages} pages</span>
-                      <span className="meta-dot">•</span>
-                      <span>{document.chunks} chunks</span>
+                <article
+                  className="document-card"
+                  key={document.document_id}
+                >
+                  <div className="document-card-top">
+                    <div className="document-icon">
+                      <DocumentIcon />
                     </div>
+
+                    <button
+                      className="delete-button"
+                      type="button"
+                      onClick={() =>
+                        void handleDelete(
+                          document.document_id,
+                        )
+                      }
+                      disabled={
+                        deletingId ===
+                        document.document_id
+                      }
+                      aria-label={`Delete ${document.filename}`}
+                      title="Delete document"
+                    >
+                      <TrashIcon />
+                    </button>
                   </div>
 
-                  <button
-                    className="delete-button"
-                    type="button"
-                    onClick={() => handleDelete(document.document_id)}
-                    disabled={deletingId === document.document_id}
-                    aria-label={`Delete ${document.filename}`}
-                    title="Delete document"
+                  <div
+                    className="document-name"
+                    title={document.filename}
                   >
-                    <TrashIcon />
-                  </button>
+                    {document.filename}
+                  </div>
+
+                  <div className="document-meta">
+                    <span>
+                      {document.pages} pages
+                    </span>
+
+                    <span className="meta-dot">
+                      •
+                    </span>
+
+                    <span>
+                      {document.chunks} chunks
+                    </span>
+                  </div>
+
+                  <div className="document-id">
+                    ID: {document.document_id}
+                  </div>
                 </article>
               ))}
             </div>
@@ -365,12 +575,36 @@ function App() {
         <div className="question-bar">
           <input
             type="text"
+            value={question}
+            onChange={(event) =>
+              setQuestion(event.target.value)
+            }
+            onKeyDown={(event) => {
+              if (
+                event.key === "Enter" &&
+                !event.shiftKey
+              ) {
+                event.preventDefault();
+                void handleAskQuestion();
+              }
+            }}
             placeholder="Ask a question about your documents..."
             aria-label="Ask a question"
+            disabled={asking}
           />
 
-          <button className="send-button" type="button" aria-label="Send question">
-            ↑
+          <button
+            className="send-button"
+            type="button"
+            onClick={() =>
+              void handleAskQuestion()
+            }
+            disabled={
+              !question.trim() || asking
+            }
+            aria-label="Send question"
+          >
+            {asking ? "…" : "↑"}
           </button>
         </div>
       </main>

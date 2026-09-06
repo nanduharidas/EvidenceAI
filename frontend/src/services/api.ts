@@ -59,3 +59,51 @@ export async function deleteDocument(documentId: string): Promise<void> {
     throw new Error("Failed to delete document.");
   }
 }
+
+export interface EvidenceSource {
+  chunk_id: string;
+  document: string;
+  page: number;
+  text: string;
+}
+
+export interface AskResponse {
+  conversation_id: string;
+  answer: string;
+  sources: EvidenceSource[];
+  distances: number[];
+}
+
+export async function askQuestion(
+  question: string,
+  conversationId?: string,
+): Promise<AskResponse> {
+  const response = await fetch(`${API_BASE_URL}/ask`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      question,
+      conversation_id: conversationId,
+    }),
+  });
+
+  if (!response.ok) {
+    let message = "Failed to ask question.";
+
+    try {
+      const data = await response.json();
+
+      if (data.detail) {
+        message = data.detail;
+      }
+    } catch {
+      // Keep the default error message.
+    }
+
+    throw new Error(message);
+  }
+
+  return response.json();
+}
