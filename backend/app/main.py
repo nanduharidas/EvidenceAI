@@ -1,4 +1,5 @@
 from pathlib import Path
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from backend.app.services.pdf_service import extract_pdf_text
 from backend.app.services.chunk_service import create_chunks
@@ -28,6 +29,17 @@ app = FastAPI(
     title="Evidence API",
     description="AI-powered document Q&A with evidence-based citations",
     version="0.1.0",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 UPLOAD_DIR = Path("data/uploads")
@@ -152,9 +164,14 @@ async def upload_document(file: UploadFile = File(...)):
     contents = await file.read()
 
     document_id = generate_document_id(
-    file.filename,
-    contents,
+        file.filename,
+        contents,
     )
+
+    existing_document = get_document(document_id)
+
+    if existing_document is not None:
+        return existing_document
 
     file_path.write_bytes(contents)
 
@@ -165,6 +182,18 @@ async def upload_document(file: UploadFile = File(...)):
         document_id=document_id,
         document_name=safe_filename,
     )
+
+    if not chunks:
+        if file_path.exists():
+            file_path.unlink()
+
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "This PDF does not contain extractable text. "
+                "Please upload a text-based PDF."
+            ),
+        )
 
     chunk_texts = [chunk.text for chunk in chunks]
 

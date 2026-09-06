@@ -15,6 +15,17 @@ button {
   border: 0;
 }
 
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+}
+
 .app-shell {
   min-height: 100vh;
   display: flex;
@@ -23,6 +34,8 @@ button {
     #0b0d12;
   color: #f4f5f7;
 }
+
+/* Sidebar */
 
 .sidebar {
   width: 250px;
@@ -86,15 +99,17 @@ button {
   color: #ffffff;
 }
 
-.nav-item span {
-  width: 20px;
-  text-align: center;
-  font-size: 15px;
+.nav-item svg {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
 }
 
 .sidebar-bottom {
   margin-top: auto;
 }
+
+/* Main */
 
 .main-content {
   flex: 1;
@@ -129,6 +144,8 @@ button {
 .icon-button {
   width: 38px;
   height: 38px;
+  display: grid;
+  place-items: center;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.05);
   color: #aeb3bf;
@@ -141,52 +158,42 @@ button {
   color: #ffffff;
 }
 
-.workspace {
+/* Documents */
+
+.documents-workspace {
+  width: min(1050px, calc(100% - 64px));
   flex: 1;
-  display: grid;
-  place-items: center;
-  padding: 48px;
+  margin: 0 auto;
+  padding: 42px 0 100px;
 }
 
-.welcome {
-  width: min(560px, 100%);
-  text-align: center;
+.documents-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 22px;
 }
 
-.welcome-icon {
-  width: 58px;
-  height: 58px;
-  margin: 0 auto 20px;
-  display: grid;
-  place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 17px;
-  background: rgba(255, 255, 255, 0.055);
-  color: #d9ddff;
-  font-size: 25px;
-  box-shadow: 0 0 40px rgba(120, 130, 255, 0.08);
-}
-
-.welcome h2 {
+.documents-header h2 {
   margin: 0;
-  font-size: 30px;
+  font-size: 18px;
   font-weight: 650;
-  letter-spacing: -0.035em;
+  letter-spacing: -0.02em;
 }
 
-.welcome p {
-  max-width: 500px;
-  margin: 14px auto 26px;
-  color: #8d93a0;
-  line-height: 1.65;
-  font-size: 14px;
+.documents-header p {
+  margin: 6px 0 0;
+  color: #7f8592;
+  font-size: 13px;
 }
 
-.upload-button {
+.upload-button,
+.secondary-upload-button {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  padding: 11px 17px;
   border-radius: 10px;
   background: #f1f2f5;
   color: #11131a;
@@ -195,10 +202,208 @@ button {
   transition: 160ms ease;
 }
 
-.upload-button:hover {
+.upload-button {
+  padding: 10px 15px;
+  white-space: nowrap;
+}
+
+.upload-button svg,
+.secondary-upload-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.upload-button:hover,
+.secondary-upload-button:hover {
   transform: translateY(-1px);
   background: #ffffff;
 }
+
+.hidden-file-input {
+  display: none;
+}
+
+/* Error */
+
+.error-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+  padding: 11px 13px;
+  border: 1px solid rgba(255, 100, 100, 0.22);
+  border-radius: 10px;
+  background: rgba(120, 35, 35, 0.16);
+  color: #e6a7a7;
+  font-size: 13px;
+}
+
+.error-banner button {
+  padding: 2px 6px;
+  background: transparent;
+  color: #c89090;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+/* Document cards */
+
+.document-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.document-card {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  min-height: 76px;
+  padding: 13px 15px;
+  border: 1px solid rgba(255, 255, 255, 0.075);
+  border-radius: 13px;
+  background: rgba(20, 23, 30, 0.72);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+  transition: 160ms ease;
+}
+
+.document-card:hover {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(25, 28, 36, 0.86);
+}
+
+.document-icon {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.045);
+  color: #c9ceff;
+}
+
+.document-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.document-info {
+  min-width: 0;
+  flex: 1;
+}
+
+.document-info h3 {
+  overflow: hidden;
+  margin: 0 0 6px;
+  color: #f1f2f5;
+  font-size: 14px;
+  font-weight: 550;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.document-meta {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #777e8c;
+  font-size: 12px;
+}
+
+.meta-dot {
+  color: #4f5561;
+}
+
+.delete-button {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: transparent;
+  color: #737987;
+  cursor: pointer;
+  transition: 160ms ease;
+}
+
+.delete-button:hover {
+  background: rgba(255, 80, 80, 0.09);
+  color: #df8c8c;
+}
+
+/* Empty/loading states */
+
+.documents-state {
+  min-height: 360px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed rgba(255, 255, 255, 0.09);
+  border-radius: 16px;
+  color: #808694;
+}
+
+.documents-state p {
+  margin: 12px 0 0;
+  font-size: 13px;
+}
+
+.empty-icon {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #aeb5dc;
+}
+
+.empty-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.empty-state h3 {
+  margin: 18px 0 0;
+  color: #e8e9ed;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.empty-state p {
+  max-width: 360px;
+  margin: 8px 0 20px;
+  color: #777e8c;
+  text-align: center;
+  line-height: 1.5;
+}
+
+.secondary-upload-button {
+  padding: 9px 14px;
+}
+
+.loading-spinner {
+  width: 22px;
+  height: 22px;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-top-color: #dce0ff;
+  border-radius: 50%;
+  animation: spin 800ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Question bar */
 
 .question-bar {
   width: min(850px, calc(100% - 64px));
@@ -249,6 +454,8 @@ button {
   background: #ffffff;
 }
 
+/* Responsive */
+
 @media (max-width: 720px) {
   .sidebar {
     width: 72px;
@@ -262,31 +469,28 @@ button {
   }
 
   .brand span,
-  .nav-item:not(.active) {
-    font-size: 0;
+  .nav-item span {
+    display: none;
   }
 
   .nav-item {
     justify-content: center;
   }
 
-  .nav-item span {
-    font-size: 15px;
-  }
-
   .topbar {
     padding: 18px 20px;
   }
 
-  .workspace {
-    padding: 30px 20px;
+  .documents-workspace {
+    width: calc(100% - 40px);
+    padding-top: 30px;
+  }
+
+  .documents-header {
+    align-items: flex-start;
   }
 
   .question-bar {
     width: calc(100% - 32px);
-  }
-
-  .welcome h2 {
-    font-size: 26px;
   }
 }

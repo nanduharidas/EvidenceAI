@@ -76,16 +76,22 @@ def create_document_record(
 
 
 def add_document(record: dict) -> None:
-    """
-    Add a document to the registry.
-    """
-
     documents = load_documents()
 
+    existing_document = next(
+        (
+            document
+            for document in documents
+            if document["document_id"] == record["document_id"]
+        ),
+        None,
+    )
+
+    if existing_document is not None:
+        return
+
     documents.append(record)
-
     save_documents(documents)
-
 
 def get_document(document_id: str) -> dict | None:
     """
