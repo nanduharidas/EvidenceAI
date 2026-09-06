@@ -7,10 +7,14 @@ import {
 import {
   askQuestion,
   deleteDocument,
+  getConversation,
+  getConversations,
   getDocuments,
   uploadDocument,
   type AskResponse,
+  type Conversation,
   type Document,
+  type EvidenceSource,
 } from "./services/api";
 import "./App.css";
 
@@ -36,7 +40,7 @@ function SettingsIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z" />
-      <path d="M19 13.5v-3l-2-.6a5.7 5.7 0 0 0-.7-1.6l.9-1.9-2.1-2.1-1.9.9a5.7 5.7 0 0 0-1.6-.7L11 2.5H9l-.6 2a5.7 5.7 0 0 0-1.6.7l-1.9-.9-2.1 2.1.9 1.9a5.7 5.7 0 0 0-.7 1.6l-2 .6v3l2 .6c.2.6.4 1.1.7 1.6l-.9 1.9 2.1 2.1 1.9-.9c.5.3 1 .5 1.6.7l.6 2h3l.6-2c.6-.2 1.1-.4 1.6-.7l1.9.9 2.1-2.1-.9-1.9c.3-.5.5-1 .7-1.6z" />
+      <path d="M19 13.5v-3l-2-.6a5.7 5.7 0 0 0-.7-1.6l.9-1.9-2.1-2.1-1.9.9a5.7 5.7 0 0 0-1.6-.7L11 2.5H9l-.6 2a5.7 5.7 0 0 0-1.6.7l-1.9-.9-2.1 2.1.9 1.9 2 .6c.2.6.4 1.1.7 1.6l-.9 1.9 2.1 2.1 1.9-.9c.5.3 1 .5 1.6.7l.6 2h3l.6-2c.6-.2 1.1-.4 1.6-.7l1.9.9 2.1-2.1-.9-1.9c.3-.5.5-1 .7-1.6z" />
     </svg>
   );
 }
@@ -59,6 +63,14 @@ function TrashIcon() {
   );
 }
 
+function PlusIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
+
 function cleanText(text: string) {
   return text
     .replace(/<EOS>/gi, "")
@@ -67,12 +79,68 @@ function cleanText(text: string) {
     .trim();
 }
 
+function formatConversationTitle(conversation: Conversation) {
+  const firstMessage = conversation.messages[0]?.question;
+
+  if (!firstMessage) {
+    return "New conversation";
+  }
+
+  const cleaned = cleanText(firstMessage);
+
+  return cleaned.length > 42
+    ? `${cleaned.slice(0, 42)}...`
+    : cleaned;
+}
+
+function convertConversationMessages(
+  conversation: Conversation,
+) {
+  return conversation.messages.flatMap((message) => {
+    const userMessage = {
+      id: crypto.randomUUID(),
+      role: "user" as const,
+      content: cleanText(message.question),
+    };
+
+    const assistantResponse: AskResponse = {
+      conversation_id: conversation.conversation_id,
+      answer: message.answer,
+      sources: message.sources,
+      distances: message.distances,
+    };
+
+    const assistantMessage = {
+      id: crypto.randomUUID(),
+      role: "assistant" as const,
+      content: cleanText(message.answer),
+      response: assistantResponse,
+    };
+
+    return [userMessage, assistantMessage];
+  });
+}
+
 function App() {
   const [documents, setDocuments] = useState<Document[]>([]);
+  const [conversations, setConversations] = useState<
+    Conversation[]
+  >([]);
+
+  const [activeSection, setActiveSection] = useState<
+    "documents" | "conversations"
+  >("documents");
+
+  const [selectedConversationId, setSelectedConversationId] =
+    useState<string | undefined>();
+
   const [loading, setLoading] = useState(true);
+  
+
   const [uploading, setUploading] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(
+    null,
+  );
 
   const [question, setQuestion] = useState("");
   const [messages, setMessages] = useState<
@@ -83,34 +151,101 @@ function App() {
       response?: AskResponse;
     }[]
   >([]);
+
   const [conversationId, setConversationId] = useState<
     string | undefined
   >();
+
   const [asking, setAsking] = useState(false);
+  const [loadingConversationId, setLoadingConversationId] =
+    useState<string | null>(null);
+
+  const [error, setError] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    async function loadDocuments() {
+    async function loadInitialData() {
       try {
         setLoading(true);
         setError(null);
 
-        const data = await getDocuments();
-        setDocuments(data);
+        const [documentData, conversationData] =
+          await Promise.all([
+            getDocuments(),
+            getConversations(),
+          ]);
+
+        setDocuments(documentData);
+        setConversations(conversationData);
       } catch (err) {
         setError(
           err instanceof Error
             ? err.message
-            : "Unable to load documents.",
+            : "Unable to load application data.",
         );
       } finally {
         setLoading(false);
       }
     }
 
-    void loadDocuments();
+    void loadInitialData();
   }, []);
+
+  async function refreshConversations() {
+    try {
+      const data = await getConversations();
+      setConversations(data);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to load conversations.",
+      );
+    }
+  }
+
+  async function handleSelectConversation(
+    id: string,
+  ) {
+    if (loadingConversationId === id) {
+      return;
+    }
+
+    try {
+      setLoadingConversationId(id);
+      setError(null);
+
+      const conversation = await getConversation(id);
+
+      setConversationId(conversation.conversation_id);
+      setSelectedConversationId(
+        conversation.conversation_id,
+      );
+      setMessages(
+        convertConversationMessages(conversation),
+      );
+      setQuestion("");
+      setActiveSection("conversations");
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to load conversation.",
+      );
+    } finally {
+      setLoadingConversationId(null);
+    }
+  }
+
+  function handleNewConversation() {
+    setConversationId(undefined);
+    setSelectedConversationId(undefined);
+    setMessages([]);
+    setQuestion("");
+    setError(null);
+    setActiveSection("documents");
+  }
 
   async function handleUpload(file: File) {
     if (!file.name.toLowerCase().endsWith(".pdf")) {
@@ -126,7 +261,8 @@ function App() {
 
       setDocuments((current) => {
         const exists = current.some(
-          (item) => item.document_id === document.document_id,
+          (item) =>
+            item.document_id === document.document_id,
         );
 
         if (exists) {
@@ -216,7 +352,11 @@ function App() {
       content: trimmedQuestion,
     };
 
-    setMessages((current) => [...current, userMessage]);
+    setMessages((current) => [
+      ...current,
+      userMessage,
+    ]);
+
     setQuestion("");
     setAsking(true);
     setError(null);
@@ -228,6 +368,9 @@ function App() {
       );
 
       setConversationId(response.conversation_id);
+      setSelectedConversationId(
+        response.conversation_id,
+      );
 
       setMessages((current) => [
         ...current,
@@ -238,6 +381,8 @@ function App() {
           response,
         },
       ]);
+
+      await refreshConversations();
     } catch (err) {
       setError(
         err instanceof Error
@@ -256,7 +401,10 @@ function App() {
           <div className="brand-mark">E</div>
 
           <div>
-            <div className="brand-name">EvidenceAI</div>
+            <div className="brand-name">
+              EvidenceAI
+            </div>
+
             <div className="brand-subtitle">
               Document Intelligence
             </div>
@@ -268,16 +416,32 @@ function App() {
           aria-label="Main navigation"
         >
           <button
-            className="nav-item active"
+            className={`nav-item ${
+              activeSection === "documents"
+                ? "active"
+                : ""
+            }`}
             type="button"
+            onClick={() => {
+              setActiveSection("documents");
+              setError(null);
+            }}
           >
             <DocumentIcon />
             <span>Documents</span>
           </button>
 
           <button
-            className="nav-item"
+            className={`nav-item ${
+              activeSection === "conversations"
+                ? "active"
+                : ""
+            }`}
             type="button"
+            onClick={() => {
+              setActiveSection("conversations");
+              setError(null);
+            }}
           >
             <ConversationIcon />
             <span>Conversations</span>
@@ -286,11 +450,74 @@ function App() {
           <button
             className="nav-item"
             type="button"
+            onClick={() => setError("Settings are coming soon.")}
           >
             <SettingsIcon />
             <span>Settings</span>
           </button>
         </nav>
+
+        <div className="conversation-sidebar">
+          {activeSection === "conversations" && (
+            <>
+              <button
+                className="new-conversation-button"
+                type="button"
+                onClick={handleNewConversation}
+              >
+                <PlusIcon />
+                <span>New conversation</span>
+              </button>
+
+              <div className="conversation-list">
+                {conversations.length === 0 ? (
+                  <div className="conversation-loading">
+                    Loading...
+                  </div>
+                ) : conversations.length === 0 ? (
+                  <div className="conversation-empty">
+                    No conversations yet.
+                  </div>
+                ) : (
+                  conversations.map((conversation) => (
+                    <button
+                      className={`conversation-item ${
+                        selectedConversationId ===
+                        conversation.conversation_id
+                          ? "active"
+                          : ""
+                      }`}
+                      type="button"
+                      key={
+                        conversation.conversation_id
+                      }
+                      onClick={() =>
+                        void handleSelectConversation(
+                          conversation.conversation_id,
+                        )
+                      }
+                      disabled={
+                        loadingConversationId ===
+                        conversation.conversation_id
+                      }
+                    >
+                      <ConversationIcon />
+
+                      <span>
+                        {loadingConversationId ===
+                        conversation.conversation_id
+                          ? "Loading..."
+                          : formatConversationTitle(
+                              conversation,
+                            )}
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
+            </>
+          )}
+        </div>
 
         <div className="sidebar-footer">
           <div className="status-dot" />
@@ -301,10 +528,16 @@ function App() {
       <main className="main-content">
         <header className="topbar">
           <div>
-            <h1>Documents</h1>
+            <h1>
+              {activeSection === "conversations"
+                ? "Conversations"
+                : "Documents"}
+            </h1>
+
             <p>
-              Ask questions and get answers backed by
-              evidence.
+              {activeSection === "conversations"
+                ? "Review and continue previous document conversations."
+                : "Ask questions and get answers backed by evidence."}
             </p>
           </div>
 
@@ -407,7 +640,10 @@ function App() {
                       </div>
 
                       {message.response.sources.map(
-                        (source, index) => (
+                        (
+                          source: EvidenceSource,
+                          index,
+                        ) => (
                           <details
                             className="evidence-item"
                             key={source.chunk_id}
@@ -438,7 +674,9 @@ function App() {
                             </summary>
 
                             <div className="evidence-quote">
-                              {cleanText(source.text)}
+                              {cleanText(
+                                source.text,
+                              )}
                             </div>
                           </details>
                         ),
@@ -464,113 +702,141 @@ function App() {
           </section>
         )}
 
-        <section className="documents-section">
-          <div className="section-heading">
-            <div>
-              <h2>Your Documents</h2>
-
-              <p>
-                {documents.length === 0
-                  ? "Upload a PDF to start asking questions."
-                  : `${documents.length} ${
-                      documents.length === 1
-                        ? "document"
-                        : "documents"
-                    } available`}
-              </p>
+        {activeSection === "conversations" &&
+        messages.length === 0 ? (
+          <section className="conversation-main-empty">
+            <div className="empty-icon">
+              <ConversationIcon />
             </div>
-          </div>
 
-          {loading ? (
-            <div className="empty-state">
-              <div className="loading-spinner" />
-              <p>Loading documents...</p>
-            </div>
-          ) : documents.length === 0 ? (
-            <div className="empty-state">
-              <div className="empty-icon">
-                <DocumentIcon />
+            <h2>Conversation history</h2>
+
+            <p>
+              Select a conversation from the sidebar
+              to continue where you left off.
+            </p>
+
+            <button
+              className="empty-upload-button"
+              type="button"
+              onClick={handleNewConversation}
+            >
+              <PlusIcon />
+              Start a new conversation
+            </button>
+          </section>
+        ) : (
+          <section className="documents-section">
+            <div className="section-heading">
+              <div>
+                <h2>Your Documents</h2>
+
+                <p>
+                  {loading
+                    ? "Loading documents..."
+                    : documents.length === 0
+                      ? "Upload a PDF to start asking questions."
+                      : `${documents.length} ${
+                          documents.length === 1
+                            ? "document"
+                            : "documents"
+                        } available`}
+                </p>
               </div>
-
-              <h3>No documents yet</h3>
-
-              <p>
-                Upload a PDF and EvidenceAI will index it
-                for evidence-based questions.
-              </p>
-
-              <button
-                className="empty-upload-button"
-                type="button"
-                onClick={() =>
-                  fileInputRef.current?.click()
-                }
-                disabled={uploading}
-              >
-                <UploadIcon />
-                Upload your first PDF
-              </button>
             </div>
-          ) : (
-            <div className="document-grid">
-              {documents.map((document) => (
-                <article
-                  className="document-card"
-                  key={document.document_id}
+
+            {loading ? (
+              <div className="empty-state">
+                <div className="loading-spinner" />
+                <p>Loading documents...</p>
+              </div>
+            ) : documents.length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-icon">
+                  <DocumentIcon />
+                </div>
+
+                <h3>No documents yet</h3>
+
+                <p>
+                  Upload a PDF and EvidenceAI will
+                  index it for evidence-based
+                  questions.
+                </p>
+
+                <button
+                  className="empty-upload-button"
+                  type="button"
+                  onClick={() =>
+                    fileInputRef.current?.click()
+                  }
+                  disabled={uploading}
                 >
-                  <div className="document-card-top">
-                    <div className="document-icon">
-                      <DocumentIcon />
+                  <UploadIcon />
+                  Upload your first PDF
+                </button>
+              </div>
+            ) : (
+              <div className="document-grid">
+                {documents.map((document) => (
+                  <article
+                    className="document-card"
+                    key={document.document_id}
+                  >
+                    <div className="document-card-top">
+                      <div className="document-icon">
+                        <DocumentIcon />
+                      </div>
+
+                      <button
+                        className="delete-button"
+                        type="button"
+                        onClick={() =>
+                          void handleDelete(
+                            document.document_id,
+                          )
+                        }
+                        disabled={
+                          deletingId ===
+                          document.document_id
+                        }
+                        aria-label={`Delete ${document.filename}`}
+                        title="Delete document"
+                      >
+                        <TrashIcon />
+                      </button>
                     </div>
 
-                    <button
-                      className="delete-button"
-                      type="button"
-                      onClick={() =>
-                        void handleDelete(
-                          document.document_id,
-                        )
-                      }
-                      disabled={
-                        deletingId ===
-                        document.document_id
-                      }
-                      aria-label={`Delete ${document.filename}`}
-                      title="Delete document"
+                    <div
+                      className="document-name"
+                      title={document.filename}
                     >
-                      <TrashIcon />
-                    </button>
-                  </div>
+                      {document.filename}
+                    </div>
 
-                  <div
-                    className="document-name"
-                    title={document.filename}
-                  >
-                    {document.filename}
-                  </div>
+                    <div className="document-meta">
+                      <span>
+                        {document.pages} pages
+                      </span>
 
-                  <div className="document-meta">
-                    <span>
-                      {document.pages} pages
-                    </span>
+                      <span className="meta-dot">
+                        •
+                      </span>
 
-                    <span className="meta-dot">
-                      •
-                    </span>
+                      <span>
+                        {document.chunks} chunks
+                      </span>
+                    </div>
 
-                    <span>
-                      {document.chunks} chunks
-                    </span>
-                  </div>
-
-                  <div className="document-id">
-                    ID: {document.document_id}
-                  </div>
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
+                    <div className="document-id">
+                      ID: {document.document_id}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
 
         <div className="question-bar">
           <input
@@ -588,7 +854,11 @@ function App() {
                 void handleAskQuestion();
               }
             }}
-            placeholder="Ask a question about your documents..."
+            placeholder={
+              conversationId
+                ? "Continue this conversation..."
+                : "Ask a question about your documents..."
+            }
             aria-label="Ask a question"
             disabled={asking}
           />
