@@ -1,4 +1,5 @@
 import re
+MAX_RETRIEVAL_DISTANCE = 0.45
 
 def validate_citations(answer: str, source_count: int) -> str:
     citation_numbers = [
@@ -25,10 +26,12 @@ class RAGService:
         embedding_service,
         vector_store,
         llm_service,
+        max_retrieval_distance: float = MAX_RETRIEVAL_DISTANCE,
     ):
         self.embedding_service = embedding_service
         self.vector_store = vector_store
         self.llm_service = llm_service
+        self.max_retrieval_distance = max_retrieval_distance
 
     def answer_question(
         self,
@@ -49,14 +52,40 @@ class RAGService:
         metadatas = results.get("metadatas", [[]])[0]
         distances = results.get("distances", [[]])[0]
 
-        if not documents:
+        filtered_results = [
+            (document, metadata, distance)
+            for document, metadata, distance in zip(
+                documents,
+                metadatas,
+                distances,
+            )
+            if distance <= self.max_retrieval_distance
+        ]
+
+        if not filtered_results:
             return {
                 "answer": (
                     "I could not find relevant evidence "
                     "in the uploaded documents."
                 ),
                 "sources": [],
+                "distances": [],
             }
+
+        documents = [
+            document
+            for document, _, _ in filtered_results
+        ]
+
+        metadatas = [
+            metadata
+            for _, metadata, _ in filtered_results
+        ]
+
+        distances = [
+            distance
+            for _, _, distance in filtered_results
+        ]
 
         evidence_parts = []
 

@@ -107,3 +107,93 @@ def test_sources_include_supporting_text():
     ]
 
     assert result["distances"] == [0.2, 0.4]
+
+def test_irrelevant_results_are_filtered():
+    class IrrelevantVectorStore:
+        def search(self, query_embedding, top_k):
+            return {
+                "documents": [["Unrelated text."]],
+                "metadatas": [
+                    [
+                        {
+                            "document_id": "test-document",
+                            "document": "test.pdf",
+                            "page": 1,
+                        }
+                    ]
+                ],
+                "distances": [[0.8]],
+            }
+
+    class LLMShouldNotBeCalled:
+        def generate_answer(self, question, context):
+            raise AssertionError(
+                "LLM should not be called when no relevant evidence exists"
+            )
+
+    rag_service = RAGService(
+        embedding_service=FakeEmbeddingService(),
+        vector_store=IrrelevantVectorStore(),
+        llm_service=LLMShouldNotBeCalled(),
+        max_retrieval_distance=0.45,
+    )
+
+    result = rag_service.answer_question(
+        question="An unrelated question",
+    )
+
+    assert result["sources"] == []
+    assert result["distances"] == []
+    assert result["answer"] == (
+        "I could not find relevant evidence "
+        "in the uploaded documents."
+    )
+
+def test_only_relevant_results_are_sent_to_llm():
+    class MixedVectorStore:
+        def search(self, query_embedding, top_k):
+            return {
+                "documents": [
+                    [
+                        "Relevant evidence.",
+                        "Irrelevant evidence.",
+                    ]
+                ],
+                "metadatas": [
+                    [
+                        {
+                            "document_id": "test-document",
+                            "document": "test.pdf",
+                            "page": 2,
+                        },
+                        {
+                            "document_id": "test-document",
+                            "document": "test.pdf",
+                            "page": 8,
+                        },
+                    ]
+                ],
+                "distances": [[0.25, 0.70]],
+            }
+
+    class ContextCheckingLLM:
+        def generate_answer(self, question, context):
+            assert "Relevant evidence." in context
+            assert "Irrelevant evidence." not in context
+
+            return "The answer is supported [1]."
+
+    rag_service = RAGService(
+        embedding_service=FakeEmbeddingService(),
+        vector_store=MixedVectorStore(),
+        llm_service=ContextCheckingLLM(),
+        max_retrieval_distance=0.45,
+    )
+
+    result = rag_service.answer_question(
+        question="Relevant question",
+    )
+
+    assert len(result["sources"]) == 1
+    assert result["sources"][0]["text"] == "Relevant evidence."
+    assert result["distances"] == [0.25]
